@@ -1,75 +1,109 @@
-﻿#include<opencv2/opencv.hpp>
+﻿//练习1
+#include<opencv2/opencv.hpp>
 #include<iostream>
 #include<math.h>
 #include <vector>
+
 using namespace cv;
 using namespace std;
-//练习1
+
+void myharris(Mat & src, float * hist);
 
 int main()
 {
-	Mat img_1 = imread("E:\\1.png");
-	//初始化
-	std::vector<KeyPoint> keypoints_1;
-	Mat descriptors_1;
-	Ptr<FeatureDetector> detector = ORB::create();
-	Ptr<DescriptorExtractor> descriptor = ORB::create();
-	//检测 Oriented FAST 角点位置
-	detector->detect(img_1, keypoints_1);
-	//根据角点位置计算 BRIEF 描述子
-	descriptor->compute(img_1, keypoints_1, descriptors_1);
-	Mat outimg1;
-	drawKeypoints(img_1, keypoints_1, outimg1, Scalar::all(-1), DrawMatchesFlags::DEFAULT);
-	imshow("ORB特征点", outimg1);
+    int bins = 1000000;
+	Mat src = imread("E:\\9\\hogTemplate.jpg");
+	Mat src1 = imread("E:\\9\\img1.jpg");
+	Mat src2 = imread("E:\\9\\img2.jpg");
 
- 
-/* 	//以灰度模式载入图像并显示
-	Mat srcImage = imread("E:\\1.png", 0);*/
-	Mat srcImage = imread("E:\\1.png");
-	imshow("原始图", srcImage);
-	//灰度图	
-	Mat grayImage;
-	cvtColor(srcImage, grayImage, CV_BGR2GRAY);
+	
+	float * ref_hist = new float[bins];//bins
+	memset(ref_hist, 0, sizeof(float)*bins);
 
-	//进行Harris角点检测找出角点
-	Mat cornerStrength;
-	cornerHarris(grayImage, cornerStrength, 2, 3, 0.04, BORDER_DEFAULT);
-	imshow("角点检测后的图", cornerStrength);
-	//对灰度图进行阈值操作，得到二值图并显示  
-	Mat harrisCorner;
-	threshold(cornerStrength, harrisCorner, 0.00001, 255, THRESH_BINARY);
-	imshow("角点检测后的二值效果图", harrisCorner);
+	float * ref_hist1 = new float[bins];//bins
+	memset(ref_hist1, 0, sizeof(float)*bins);
 
-	Mat dstImage;//目标图
-	Mat normImage;//归一化后的图
-	Mat scaledImage;//线性变换后的八位无符号整型的图
-	//初始化
-	//置零当前需要显示的两幅图，即清除上一次调用此函数时他们的值
-	dstImage = Mat::zeros(srcImage.size(), CV_32FC1);
-	//进行角点检测
-	cornerHarris(grayImage, dstImage, 2, 3, 0.04, BORDER_DEFAULT);
-	// 归一化与转换
-	normalize(dstImage, normImage, 0, 255, NORM_MINMAX, CV_32FC1, Mat());
-	convertScaleAbs(normImage, scaledImage);//将归一化后的图线性变换成8位无符号整型 
-	// 将检测到的，且符合阈值条件的角点绘制出来
-	for (int j = 0; j < normImage.rows; j++)
-	{
-		for (int i = 0; i < normImage.cols; i++)
-		{
-			if ((int)normImage.at<float>(j, i) > 0 + 80)
-			{
-				circle(srcImage, Point(i, j), 5, Scalar(10, 10, 255), 2, 8, 0);
-				circle(scaledImage, Point(i, j), 5, Scalar(0, 10, 255), 2, 8, 0);
-			}
-		}
+	float * ref_hist2 = new float[bins];//bins
+	memset(ref_hist2, 0, sizeof(float)*bins);
+
+	myharris(src,ref_hist);
+	myharris(src1, ref_hist1);
+	myharris(src2, ref_hist2);
+
+
+	float sum1 = 0;
+	for (int i = 0; i < bins; i++) {
+		sum1 += (ref_hist[i] - ref_hist1[i])*(ref_hist[i] - ref_hist1[i]);
 	}
-	imshow(" ", srcImage);
-	imshow(" s ", scaledImage);
+	sum1=sqrt(sum1);
+	cout << sum1 << endl;
 
+	float sum2 = 0;
+	for (int i = 0; i < bins; i++) {
+		sum2 += (ref_hist[i] - ref_hist2[i])*(ref_hist[i] - ref_hist2[i]);
+	}
+	sum2 = sqrt(sum2);
+	cout  << sum2 << endl;
 
+	if (sum1 <= sum2) {
+		cout << "img1更与原图相似"<< endl;
+	}
+	if (sum1 > sum2) {
+		cout << "img2更与原图相似" << endl;
+	}
+
+	delete[] ref_hist;
+	delete[] ref_hist1;
+	delete[] ref_hist2;
 	waitKey();
 	return 0;
 }
 
+void myharris(Mat & src, float * ref_hist) {
+	Mat gray;
+	cvtColor(src, gray, CV_BGR2GRAY);
 
-//https://github.com/ooooooops/HarrisCornersDetector/blob/master/harris.cpp
+	int cellSize = 16;
+	float scale = 360 / 8;
+	int nX = gray.cols / cellSize;
+	int nY = gray.rows / cellSize;
+
+	Mat gx, gy;
+	Mat mag, angle;
+	cv::Sobel(gray, gx, CV_32F, 1, 0, 1);
+	cv::Sobel(gray, gy, CV_32F, 0, 1, 1);
+	cartToPolar(gx, gy, mag, angle, true);
+
+	int c = 0;
+	//遍历所有
+	for (int a = 0; ((a-1)*nY) <= gray.rows; a++) {
+		for (int b = 0; ((b-1)*nX) <= gray.cols; b++) {
+
+			//遍历其中一个cell
+			for (int j = (a*nY); j <= (a*nY+ nY); j++) {
+				uchar* mag_row_ptr = mag.ptr <uchar>(j);// 第j行的头指针
+				uchar* angle_row_ptr = angle.ptr <uchar>(j);// 第j行的头指针
+				for (int i = (b*nX); i <= (b*nX+ nX); i++) {
+					// 访问位于 x,y 处的像素
+					uchar* mag_ptr = &mag_row_ptr[i]; //  指向待访问的像素数据
+					uchar* angle_ptr = &angle_row_ptr[i]; //  指向待访问的像素数据
+
+					float data_mag = mag_ptr[0]; // data为I(x,y)第0个通道的值    	梯度
+					float data_angle = angle_ptr[0]; // data为I(x,y)第0个通道的值   角度
+					
+					for (int i = 0; i <= 8; i++)
+					{
+						if (data_angle <= (i*scale))
+						{
+							int d = i + c;
+							ref_hist[d] = ref_hist[d] + data_mag;//遍历像素
+							//cout << "histgram" << ref_hist[d] << endl;
+						}
+					}			
+				}	
+			}
+
+        c = c + 8;
+		}
+	}
+}
