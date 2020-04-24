@@ -17,13 +17,13 @@ int main()
 	Mat src2 = imread("E:\\9\\img2.jpg");
 
 	
-	float * ref_hist = new float[bins];//bins
+	float * ref_hist = new float[bins];
 	memset(ref_hist, 0, sizeof(float)*bins);
 
-	float * ref_hist1 = new float[bins];//bins
+	float * ref_hist1 = new float[bins];
 	memset(ref_hist1, 0, sizeof(float)*bins);
 
-	float * ref_hist2 = new float[bins];//bins
+	float * ref_hist2 = new float[bins];
 	memset(ref_hist2, 0, sizeof(float)*bins);
 
 	myharris(src,ref_hist);
